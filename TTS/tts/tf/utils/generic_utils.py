@@ -18,8 +18,17 @@ def save_checkpoint(model, optimizer, current_step, epoch, r, output_path, **kwa
     pickle.dump(state, open(output_path, 'wb'))
 
 
+class SafeUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == "builtins" and name in {"dict", "list", "tuple", "set", "int", "float", "str", "bytes", "bool"}:
+            return super().find_class(module, name)
+        if "numpy" in module:
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(f"Unsafe global {module}.{name}")
+
+
 def load_checkpoint(model, checkpoint_path):
-    checkpoint = pickle.load(open(checkpoint_path, 'rb'))
+    checkpoint = SafeUnpickler(open(checkpoint_path, 'rb')).load()
     chkp_var_dict = {var.name: var.numpy() for var in checkpoint['model']}
     tf_vars = model.weights
     for tf_var in tf_vars:
